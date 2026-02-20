@@ -13,12 +13,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun AuthorizationScreen(
     onLoginSuccess: () -> Unit,
     onGoToRegistration: () -> Unit,
-    vm: AuthorizationViewModel = viewModel()
+    vm: AuthorizationViewModel = viewModel(factory = AuthorizationViewModel .factory)
 ) {
     val state by vm.state.collectAsState()
 
-    LaunchedEffect(state.isLoggedIn) {
-        if (state.isLoggedIn) onLoginSuccess()
+    LaunchedEffect(state.isAuthorized) {
+        if (state.isAuthorized) onLoginSuccess()
     }
 
     Scaffold { padding ->

@@ -14,7 +14,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun RegistrationScreen(
     onBackToAuthorization: () -> Unit,
     onRegistrationSuccess: () -> Unit,
-    vm: RegistrationViewModel = viewModel()
+    vm: RegistrationViewModel = viewModel(factory = RegistrationViewModel.factory)
 ) {
     val state by vm.state.collectAsState()
 

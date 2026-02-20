@@ -31,9 +31,6 @@ fun AppView() {
             RegistrationScreen(
                 onBackToAuthorization = { navController.popBackStack() },
                 onRegistrationSuccess = {
-                    // Обычно после успешной регистрации либо:
-                    // 1) возвращаем на авторизацию
-                    // 2) или сразу логиним и ведем в список задач
                     navController.navigate(Routes.TaskList) {
                         popUpTo(Routes.Authorization) { inclusive = true }
                     }
