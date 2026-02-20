@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.taskcore.ui.App
+import com.example.taskcore.ui.AppView
 import com.example.taskcore.ui.theme.TaskCoreTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             TaskCoreTheme {
-                App()
+                AppView()
             }
         }
     }
@@ -24,6 +24,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun GreetingPreview() {
     TaskCoreTheme {
-        App()
+        AppView()
     }
 }

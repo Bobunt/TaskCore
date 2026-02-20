@@ -20,7 +20,7 @@ object Routes {
 }
 
 @Composable
-fun App() {
+fun AppView() {
     val navController = rememberNavController()
 
     NavHost(
