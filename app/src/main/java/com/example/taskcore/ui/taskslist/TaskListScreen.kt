@@ -6,10 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.taskcore.ui.task.TaskViewModel
 
@@ -22,6 +27,17 @@ fun TaskListScreen(
     vm: TaskListViewModel = viewModel(factory = TaskListViewModel.factory)
 ) {
     val state by vm.state.collectAsState()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                vm.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Список задач") }) },
@@ -63,7 +79,8 @@ fun TaskListScreen(
                     items(state.tasks, key = { it.id }) { task ->
                         TaskRow(
                             task = task,
-                            onClick = { onTaskClick(task.id) }
+                            onClick = { onTaskClick(task.id) },
+                            onDeleteClick = { vm.deleteTask(it.id) }
                         )
                     }
                 }
@@ -75,17 +92,64 @@ fun TaskListScreen(
 @Composable
 private fun TaskRow(
     task: Task,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (Task) -> Unit
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Удалить задачу?") },
+            text = { Text("Задача \"${task.title}\" будет удалена.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteClick(task)
+                    }
+                ) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(task.title, style = MaterialTheme.typography.titleMedium)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    task.title,
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                IconButton(onClick = { showDeleteDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Удалить"
+                    )
+                }
+            }
+
             Spacer(Modifier.height(4.dp))
-            Text(task.description, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+
+            Text(
+                task.description,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2
+            )
+
             Spacer(Modifier.height(8.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

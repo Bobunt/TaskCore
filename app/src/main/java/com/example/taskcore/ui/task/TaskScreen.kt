@@ -19,6 +19,9 @@ fun TaskScreen(
     onBack: () -> Unit,
     vm: TaskViewModel = viewModel(factory = TaskViewModel.factory)
 ) {
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(taskId) {
         vm.load(taskId)
     }
@@ -42,16 +45,33 @@ fun TaskScreen(
                     when (state.mode) {
                         TaskMode.VIEW -> {
                             TextButton(onClick = vm::toEdit) { Text("Изменить") }
+                            TextButton(
+                                onClick = { showDeleteDialog = true },
+                                enabled = !state.isLoading
+                            ) { Text("Удалить") }
                         }
+
                         TaskMode.EDIT -> {
                             TextButton(
-                                onClick = vm::onSaveClick,
+                                onClick = {
+                                    vm.onSaveClick()
+                                    onBack()
+                                },
                                 enabled = state.canSave && !state.isLoading
                             ) { Text("Сохранить") }
+
+                            TextButton(
+                                onClick = { showDeleteDialog = true },
+                                enabled = !state.isLoading
+                            ) { Text("Удалить") }
                         }
+
                         TaskMode.CREATE -> {
                             TextButton(
-                                onClick = vm::onCreateClick,
+                                onClick = {
+                                    vm.onCreateClick()
+                                    onBack()
+                                },
                                 enabled = state.canSave && !state.isLoading
                             ) { Text("Создать") }
                         }
@@ -70,6 +90,26 @@ fun TaskScreen(
                 CircularProgressIndicator(modifier = Modifier.padding(16.dp))
             }
             return@Scaffold
+        }
+
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Удалить задачу?") },
+                text = { Text("Это действие нельзя отменить.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteDialog = false
+                            vm.onDeleteClick(onDeleted = onBack)
+                        },
+                        enabled = !state.isLoading
+                    ) { Text("Удалить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) { Text("Отмена") }
+                }
+            )
         }
 
         Column(
@@ -100,13 +140,11 @@ fun TaskScreen(
                 readOnly = readOnly
             )
 
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = state.assignee,
-                onValueChange = vm::onAssigneeChanged,
-                label = { Text("Ответственный") },
-                singleLine = true,
-                readOnly = readOnly
+            AssigneeDropdown(
+                assigneeLogin = state.assignee,
+                options = state.assigneeOptions,
+                readOnly = readOnly,
+                onAssigneeSelected = vm::onAssigneeChanged
             )
 
             // Пока дата и статус как текстовые поля (потом заменим на DatePicker/Dropdown)
@@ -119,17 +157,106 @@ fun TaskScreen(
                 readOnly = readOnly
             )
 
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = state.status,
-                onValueChange = vm::onStatusChanged,
-                label = { Text("Статус (OPEN/IN_PROGRESS/DONE)") },
-                singleLine = true,
-                readOnly = readOnly
+            StatusDropdown(
+                currentStatus = state.status,
+                readOnly = readOnly,
+                onStatusSelected = vm::onStatusChanged
             )
 
             if (state.error != null) {
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AssigneeDropdown(
+    assigneeLogin: String,
+    options: List<AssigneeOption>,
+    readOnly: Boolean,
+    onAssigneeSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val selectedLabel = options.firstOrNull { it.name == assigneeLogin }?.label
+        ?: assigneeLogin.ifBlank { "—" }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (!readOnly) expanded = !expanded }
+    ) {
+        OutlinedTextField(
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Ответственный") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) }
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { user ->
+                DropdownMenuItem(
+                    text = { Text(user.label) },
+                    onClick = {
+                        onAssigneeSelected(user.name) // сохраняем login
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StatusDropdown(
+    currentStatus: String,
+    readOnly: Boolean,
+    onStatusSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val statuses = com.example.taskcore.data.TaskStatus.values()
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            if (!readOnly) expanded = !expanded
+        }
+    ) {
+        OutlinedTextField(
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+            value = currentStatus,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Статус") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            }
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            statuses.forEach { status ->
+                DropdownMenuItem(
+                    text = { Text(status.name) },
+                    onClick = {
+                        onStatusSelected(status.name)
+                        expanded = false
+                    }
+                )
             }
         }
     }

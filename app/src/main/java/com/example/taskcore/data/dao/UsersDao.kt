@@ -11,11 +11,14 @@ import com.example.taskcore.data.tables.Users
 @Dao
 interface UsersDao {
 
-    @Query("SELECT * FROM users WHERE login = :login LIMIT 1")
-    suspend fun getByLogin(login: String): Users?
+    @Query("SELECT * FROM users WHERE name = :name LIMIT 1")
+    suspend fun getByLogin(name: String): Users?
 
     @Query("SELECT EXISTS(SELECT 1 FROM users WHERE login = :login)")
     suspend fun existsByLogin(login: String): Boolean
+
+    @Query("SELECT * FROM users ORDER BY name ASC")
+    suspend fun getAll(): List<Users>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(user: Users): Long

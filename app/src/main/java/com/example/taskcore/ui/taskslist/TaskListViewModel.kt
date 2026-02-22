@@ -90,6 +90,27 @@ class TaskListViewModel(
             .toLocalDate()
     }
 
+    fun deleteTask(taskId: String) {
+        val id = taskId.toIntOrNull() ?: return
+
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val entity = database.tasksDao().getById(id)
+                    if (entity != null) {
+                        database.tasksDao().delete(entity)
+                    }
+                }
+
+                // Обновляем список
+                refresh()
+
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Ошибка удаления задачи") }
+            }
+        }
+    }
+
     companion object {
         val factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

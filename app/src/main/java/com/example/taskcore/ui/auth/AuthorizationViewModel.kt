@@ -46,10 +46,10 @@ class AuthorizationViewModel(
 
         viewModelScope.launch {
             try {
-                val login = s.login.trim()
+                val name = s.login.trim()
 
                 val user = withContext(Dispatchers.IO) {
-                    usersDao.getByLogin(login)
+                    usersDao.getByLogin(name)
                 }
 
                 if (user == null) {
