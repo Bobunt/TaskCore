@@ -1,12 +1,25 @@
 package com.example.taskcore.ui.task
 
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
+import com.example.taskcore.App
+import com.example.taskcore.data.TaskCoreDB
+import com.example.taskcore.data.tables.Tasks
 import com.example.taskcore.ui.taskslist.TaskStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 data class TaskState(
     val mode: TaskMode = TaskMode.CREATE,
@@ -25,11 +38,14 @@ data class TaskState(
         get() = title.isNotBlank()
 }
 
-class TaskViewModel : ViewModel() {
+class TaskViewModel(
+    private val database: TaskCoreDB
+) : ViewModel() {
 
     private val _state = MutableStateFlow(TaskState())
     val state: StateFlow<TaskState> = _state
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun load(taskId: String?) {
         if (taskId == null) {
             // Create mode defaults
@@ -37,24 +53,57 @@ class TaskViewModel : ViewModel() {
             return
         }
 
-        // View mode + моковая загрузка "из базы"
-        _state.update { it.copy(isLoading = true, error = null) }
+        val id = taskId.toIntOrNull()
+        if (id == null) {
+            _state.update { it.copy(isLoading = false, error = "Некорректный id задачи") }
+            return
+        }
 
-        // Заглушка: просто подставим тестовую задачу
-        _state.update {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                it.copy(
-                    isLoading = false,
-                    mode = TaskMode.VIEW,
-                    taskId = taskId,
-                    title = "Задача #$taskId",
-                    description = "Описание задачи #$taskId",
-                    assignee = "Текущий пользователь",
-                    dueDate = LocalDate.now().plusDays(1).toString(),
-                    status = TaskStatus.OPEN.name
-                )
-            } else {
-                TODO("VERSION.SDK_INT < O")
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+
+            try {
+                val entity = withContext(Dispatchers.IO) {
+                    database.tasksDao().getById(id)
+                }
+
+                if (entity == null) {
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            error = "Задача не найдена",
+                            mode = TaskMode.VIEW,
+                            taskId = taskId
+                        )
+                    }
+                    return@launch
+                }
+
+                val dueDateStr = Instant.ofEpochMilli(entity.dueDateTimestamp)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .toString()
+
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = null,
+                        mode = TaskMode.VIEW,
+                        taskId = entity.id.toString(),
+                        title = entity.title,
+                        description = entity.description,
+                        assignee = entity.assignee,
+                        dueDate = dueDateStr,
+                        status = entity.status.name
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "Ошибка загрузки задачи"
+                    )
+                }
             }
         }
     }
@@ -69,12 +118,66 @@ class TaskViewModel : ViewModel() {
     fun onDueDateChanged(v: String) = _state.update { it.copy(dueDate = v, error = null) }
     fun onStatusChanged(v: String) = _state.update { it.copy(status = v, error = null) }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     fun onCreateClick() {
         val s = _state.value
-        if (!s.canSave) return
+        if (!s.canSave || s.isLoading) return
 
-        // Заглушка: "создали"
-        _state.update { it.copy(mode = TaskMode.VIEW, taskId = "new_id") }
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+
+            try {
+                // 1) Парсим дату
+                val dueLocalDate = LocalDate.parse(s.dueDate)
+
+                // 2) Дата -> timestamp (миллисекунды)
+                val dueTimestamp = dueLocalDate
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+
+                // 3) Парсим статус (и ловим ошибку)
+                val status = runCatching { TaskStatus.valueOf(s.status.trim()) }
+                    .getOrElse { throw IllegalArgumentException("Неверный статус: ${s.status}") }
+
+                // 4) Создаём entity
+                val now = System.currentTimeMillis()
+                val entity = Tasks(
+                    title = s.title.trim(),
+                    description = s.description.trim(),
+                    assignee = s.assignee.trim(),
+                    dueDateTimestamp = dueTimestamp,
+                    status = com.example.taskcore.data.TaskStatus.valueOf(s.status.trim()), // см. примечание ниже про типы
+                    createdAtTimestamp = now,
+                    updatedAtTimestamp = now
+                )
+
+                // 5) Пишем в БД (IO)
+                val newId = withContext(Dispatchers.IO) {
+                    database.tasksDao().insert(entity) // insert вернёт Long id
+                }
+
+                // 6) Обновляем state и переходим в VIEW
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        mode = TaskMode.VIEW,
+                        taskId = newId.toString()
+                    )
+                }
+            } catch (e: Exception) {
+                val msg = when (e) {
+                    is java.time.format.DateTimeParseException ->
+                        "Неверный формат даты. Используй YYYY-MM-DD"
+                    is IllegalArgumentException ->
+                        e.message ?: "Некорректные данные"
+                    else ->
+                        "Ошибка создания задачи"
+                }
+
+                _state.update { it.copy(isLoading = false, error = msg) }
+            }
+        }
     }
 
     fun onSaveClick() {
@@ -83,5 +186,17 @@ class TaskViewModel : ViewModel() {
 
         // Заглушка: "сохранили"
         _state.update { it.copy(mode = TaskMode.VIEW) }
+    }
+
+    companion object {
+        val factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: CreationExtras
+            ): T {
+                val database = (checkNotNull(extras[APPLICATION_KEY]) as App).database
+                return TaskViewModel(database) as T
+            }
+        }
     }
 }

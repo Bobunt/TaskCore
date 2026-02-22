@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.taskcore.ui.registration.RegistrationViewModel
 import java.time.LocalDate
 
 enum class TaskMode { CREATE, VIEW, EDIT }
@@ -16,7 +17,7 @@ enum class TaskMode { CREATE, VIEW, EDIT }
 fun TaskScreen(
     taskId: String?,
     onBack: () -> Unit,
-    vm: TaskViewModel = viewModel()
+    vm: TaskViewModel = viewModel(factory = TaskViewModel.factory)
 ) {
     LaunchedEffect(taskId) {
         vm.load(taskId)

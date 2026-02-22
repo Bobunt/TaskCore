@@ -1,5 +1,6 @@
 package com.example.taskcore.ui.taskslist
 
+import com.example.taskcore.data.TaskStatus
 import java.time.LocalDate
 
 enum class TaskStatus { OPEN, IN_PROGRESS, DONE }

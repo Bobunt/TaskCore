@@ -1,10 +1,24 @@
 package com.example.taskcore.ui.taskslist
 
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
+import com.example.taskcore.App
+import com.example.taskcore.data.TaskCoreDB
+import com.example.taskcore.data.tables.Tasks
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 data class TaskListState(
     val isLoading: Boolean = false,
@@ -12,42 +26,80 @@ data class TaskListState(
     val error: String? = null
 )
 
-class TaskListViewModel : ViewModel() {
+@RequiresApi(Build.VERSION_CODES.O)
+class TaskListViewModel(
+    private val database: TaskCoreDB
+) : ViewModel() {
 
-    private val _state = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        MutableStateFlow(
-            TaskListState(
-                tasks = listOf(
-                    Task(
-                        id = "1",
-                        title = "Подготовить отчет",
-                        description = "Собрать метрики за неделю",
-                        dueDate = LocalDate.now().plusDays(1),
-                        status = TaskStatus.OPEN,
-                        assignee = "Текущий пользователь"
-                    ),
-                    Task(
-                        id = "2",
-                        title = "Созвон с командой",
-                        description = "Обсудить релиз и риски",
-                        dueDate = LocalDate.now().plusDays(2),
-                        status = TaskStatus.IN_PROGRESS,
-                        assignee = "Текущий пользователь"
-                    ),
-                    Task(
-                        id = "3",
-                        title = "Проверить баги",
-                        description = "Регрессия после обновления",
-                        dueDate = LocalDate.now().plusDays(3),
-                        status = TaskStatus.DONE,
-                        assignee = "Текущий пользователь"
-                    )
-                )
-            )
-        )
-    } else {
-        TODO("VERSION.SDK_INT < O")
+    private val _state = MutableStateFlow(TaskListState(isLoading = true))
+    val state: StateFlow<TaskListState> = _state
+
+    init {
+        loadTasks()
     }
 
-    val state: StateFlow<TaskListState> = _state
+    fun refresh() {
+        loadTasks()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun loadTasks() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+
+            try {
+                val entities: List<Tasks> = withContext(Dispatchers.IO) {
+                    database.tasksDao().getAll()
+                }
+
+                // Entity -> UI model
+                val tasks: List<Task> = entities.map { entity ->
+                    Task(
+                        id = entity.id.toString(),
+                        title = entity.title,
+                        description = entity.description,
+                        assignee = entity.assignee,
+                        dueDate = epochMillisToLocalDate(entity.dueDateTimestamp),
+                        status = entity.status // см. примечание ниже
+                    )
+                }
+
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        tasks = tasks,
+                        error = null
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "Ошибка загрузки задач"
+                    )
+                }
+            }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun epochMillisToLocalDate(epochMillis: Long): LocalDate {
+        // Для dueDate чаще логично использовать локальную таймзону пользователя
+        return Instant.ofEpochMilli(epochMillis)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+    }
+
+    companion object {
+        val factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: CreationExtras
+            ): T {
+                val database = (checkNotNull(extras[APPLICATION_KEY]) as App).database
+                return TaskListViewModel(database) as T
+            }
+        }
+    }
 }

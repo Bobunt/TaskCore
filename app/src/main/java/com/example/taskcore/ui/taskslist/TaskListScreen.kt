@@ -1,5 +1,7 @@
 package com.example.taskcore.ui.taskslist
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,13 +11,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.taskcore.ui.task.TaskViewModel
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskListScreen(
     onTaskClick: (taskId: String) -> Unit,
     onCreateTaskClick: () -> Unit,
-    vm: TaskListViewModel = viewModel()
+    vm: TaskListViewModel = viewModel(factory = TaskListViewModel.factory)
 ) {
     val state by vm.state.collectAsState()
 
