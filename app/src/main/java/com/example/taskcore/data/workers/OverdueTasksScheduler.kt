@@ -3,7 +3,6 @@ package com.example.taskcore.data.workers
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
@@ -14,7 +13,7 @@ object OverdueTasksScheduler {
 
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<OverdueTasksWorker>(
-            1, TimeUnit.HOURS
+            20, TimeUnit.MINUTES
         )
             .setConstraints(
                 Constraints.Builder()
@@ -25,7 +24,7 @@ object OverdueTasksScheduler {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             UNIQUE_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             request
         )
     }

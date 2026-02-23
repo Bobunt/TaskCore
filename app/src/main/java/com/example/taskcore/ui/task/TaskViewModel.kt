@@ -69,7 +69,6 @@ class TaskViewModel(
         loadAssigneesIfNeeded()
 
         if (taskId == null) {
-            // CREATE: задачи нет -> файлов тоже нет
             _state.update { it.copy(mode = TaskMode.CREATE, taskId = null, files = emptyList(), error = null) }
             return
         }

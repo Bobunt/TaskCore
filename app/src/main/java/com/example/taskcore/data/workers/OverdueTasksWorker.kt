@@ -30,12 +30,13 @@ class OverdueTasksWorker(
         val overdue = dao.getOverdueNotNotified(now = now, doneStatus = "DONE")
         if (overdue.isEmpty()) return Result.success()
 
-        val top = overdue.first()
+        // Формируем список названий
+        val titles = overdue.joinToString(separator = "\n") { "• ${it.title}" }
 
         showNotification(
             context = applicationContext,
             title = "Просроченные задачи: ${overdue.size}",
-            text = "Например: ${top.title}"
+            text = titles
         )
 
         dao.markOverdueNotified(overdue.map { it.id }, ts = now)
@@ -60,9 +61,9 @@ class OverdueTasksWorker(
         ensureChannel(context)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_dialog_alert)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText("Разверните для просмотра")
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
             .build()
