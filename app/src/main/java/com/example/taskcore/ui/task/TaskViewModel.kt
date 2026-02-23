@@ -1,6 +1,9 @@
 package com.example.taskcore.ui.task
 
+import android.content.Context
+import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -10,6 +13,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.taskcore.App
 import com.example.taskcore.data.TaskCoreDB
 import com.example.taskcore.data.TaskStatus
+import com.example.taskcore.data.tables.TaskFiles
 import com.example.taskcore.data.tables.Tasks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,11 +39,15 @@ data class TaskState(
     val taskId: String? = null,
     val title: String = "",
     val description: String = "",
-    val assignee: String = "", // будем хранить login выбранного пользователя
+    val assignee: String = "",
     val dueDate: String = LocalDate.now().plusDays(1).toString(),
     val status: String = TaskStatus.OPEN.name,
 
     val assigneeOptions: List<AssigneeOption> = emptyList(),
+
+    // 👇 новые поля
+    val files: List<TaskFileUi> = emptyList(),
+    val isFilesLoading: Boolean = false,
 
     val isLoading: Boolean = false,
     val error: String? = null
@@ -60,13 +69,14 @@ class TaskViewModel(
         loadAssigneesIfNeeded()
 
         if (taskId == null) {
-            _state.update { TaskState(mode = TaskMode.CREATE, assigneeOptions = it.assigneeOptions, assignee = it.assignee) }
+            // CREATE: задачи нет -> файлов тоже нет
+            _state.update { it.copy(mode = TaskMode.CREATE, taskId = null, files = emptyList(), error = null) }
             return
         }
 
         val id = taskId.toIntOrNull()
         if (id == null) {
-            _state.update { it.copy(isLoading = false, error = "Некорректный id задачи") }
+            _state.update { it.copy(error = "Некорректный id задачи", files = emptyList()) }
             return
         }
 
@@ -82,9 +92,10 @@ class TaskViewModel(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            error = "Задача не найдена",
                             mode = TaskMode.VIEW,
-                            taskId = taskId
+                            taskId = taskId,
+                            error = "Задача не найдена",
+                            files = emptyList()
                         )
                     }
                     return@launch
@@ -108,11 +119,15 @@ class TaskViewModel(
                         status = entity.status.name
                     )
                 }
+
+                loadFiles(entity.id)
+
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = "Ошибка загрузки задачи"
+                        error = "Ошибка загрузки задачи",
+                        files = emptyList()
                     )
                 }
             }
@@ -281,6 +296,105 @@ class TaskViewModel(
                 }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = errorMessage(e).replace("операции", "сохранения")) }
+            }
+        }
+    }
+
+    private fun loadFiles(taskId: Int) {
+        viewModelScope.launch {
+            _state.update { it.copy(isFilesLoading = true) }
+            try {
+                val entities = withContext(Dispatchers.IO) {
+                    database.taskFilesDao().getByTaskId(taskId)
+                }
+                val ui = entities.map {
+                    TaskFileUi(
+                        id = it.id,
+                        fileName = it.fileName,
+                        mimeType = it.mimeType,
+                        filePath = it.filePath
+                    )
+                }
+                _state.update { it.copy(files = ui, isFilesLoading = false) }
+            } catch (e: Exception) {
+                _state.update { it.copy(isFilesLoading = false, error = "Ошибка загрузки файлов") }
+            }
+        }
+    }
+
+    fun addFile(context: Context, uri: Uri) {
+        val taskId = _state.value.taskId?.toIntOrNull()
+        if (taskId == null) {
+            _state.update { it.copy(error = "Сначала создайте задачу, потом прикрепляйте файлы") }
+            return
+        }
+        if (_state.value.isLoading) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isFilesLoading = true, error = null) }
+
+            try {
+                val createdId = withContext(Dispatchers.IO) {
+                    val cr = context.contentResolver
+                    val mime = cr.getType(uri) ?: "application/octet-stream"
+                    val name = queryDisplayName(cr, uri) ?: "file_${System.currentTimeMillis()}"
+
+                    // Копируем файл в приватное хранилище приложения
+                    val dir = File(context.filesDir, "task_files/$taskId").apply { mkdirs() }
+                    val target = File(dir, "${System.currentTimeMillis()}_$name")
+
+                    cr.openInputStream(uri).use { input ->
+                        requireNotNull(input) { "Не удалось открыть файл" }
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    }
+
+                    val now = System.currentTimeMillis()
+                    val entity = TaskFiles(
+                        taskId = taskId,
+                        fileName = name,
+                        filePath = target.absolutePath,
+                        mimeType = mime,
+                        createdAtTimestamp = now
+                    )
+                    database.taskFilesDao().insert(entity).toInt()
+                }
+
+                // Перезагружаем список
+                loadFiles(taskId)
+                _state.update { it.copy(isFilesLoading = false) }
+            } catch (e: Exception) {
+                _state.update { it.copy(isFilesLoading = false, error = "Ошибка добавления файла") }
+            }
+        }
+    }
+
+    private fun queryDisplayName(cr: android.content.ContentResolver, uri: Uri): String? {
+        val cursor = cr.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null) ?: return null
+        cursor.use {
+            if (!it.moveToFirst()) return null
+            val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            return if (index >= 0) it.getString(index) else null
+        }
+    }
+
+    fun deleteFile(context: Context, fileId: Int) {
+        val taskId = _state.value.taskId?.toIntOrNull() ?: return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isFilesLoading = true, error = null) }
+            try {
+                withContext(Dispatchers.IO) {
+                    val entity = database.taskFilesDao().getById(fileId)
+                    if (entity != null) {
+                        // удаляем физический файл
+                        runCatching { File(entity.filePath).delete() }
+                        database.taskFilesDao().delete(entity)
+                    }
+                }
+                loadFiles(taskId)
+                _state.update { it.copy(isFilesLoading = false) }
+            } catch (e: Exception) {
+                _state.update { it.copy(isFilesLoading = false, error = "Ошибка удаления файла") }
             }
         }
     }

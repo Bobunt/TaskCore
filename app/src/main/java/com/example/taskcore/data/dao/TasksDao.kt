@@ -29,4 +29,16 @@ interface TasksDao {
 
     @Query("DELETE FROM tasks")
     suspend fun deleteAll(): Int
+
+    @Query("""
+    SELECT * FROM tasks
+    WHERE due_date_timestamp < :now
+      AND status != :doneStatus
+      AND (overdue_notified_at_timestamp IS NULL)
+    ORDER BY due_date_timestamp ASC
+""")
+    suspend fun getOverdueNotNotified(now: Long, doneStatus: String = "DONE"): List<Tasks>
+
+    @Query("UPDATE tasks SET overdue_notified_at_timestamp = :ts WHERE id IN (:ids)")
+    suspend fun markOverdueNotified(ids: List<Int>, ts: Long): Int
 }

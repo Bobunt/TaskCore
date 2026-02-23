@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- доступ к filesDir -->
+    <files-path name="files" path="." />
+    <!-- на всякий: если будешь хранить во cacheDir -->
+    <cache-path name="cache" path="." />
+</paths>

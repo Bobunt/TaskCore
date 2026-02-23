@@ -1,17 +1,42 @@
 package com.example.taskcore.ui.task
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.taskcore.ui.registration.RegistrationViewModel
+import java.io.File
 import java.time.LocalDate
 
 enum class TaskMode { CREATE, VIEW, EDIT }
 
+data class TaskFileUi(
+    val id: Int,
+    val fileName: String,
+    val mimeType: String,
+    val filePath: String
+)
+
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskScreen(
@@ -21,6 +46,15 @@ fun TaskScreen(
 ) {
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    val pickFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri: Uri? ->
+            if (uri != null) vm.addFile(context, uri)
+        }
+    )
 
     LaunchedEffect(taskId) {
         vm.load(taskId)
@@ -32,6 +66,35 @@ fun TaskScreen(
         TaskMode.CREATE -> "Новая задача"
         TaskMode.VIEW -> "Задача"
         TaskMode.EDIT -> "Редактирование"
+    }
+
+    fun openAttachedFile(context: Context, filePath: String, mimeType: String) {
+        val file = File(filePath)
+        if (!file.exists()) {
+            Toast.makeText(context, "Файл не найден", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mimeType.ifBlank { "*/*" })
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        // Чтобы не падать, если нет подходящего приложения
+        val chooser = Intent.createChooser(intent, "Открыть с помощью")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        runCatching { context.startActivity(chooser) }
+            .onFailure {
+                Toast.makeText(context, "Нет приложения для открытия этого файла", Toast.LENGTH_SHORT).show()
+            }
     }
 
     Scaffold(
@@ -166,6 +229,97 @@ fun TaskScreen(
             if (state.error != null) {
                 Text(state.error!!, color = MaterialTheme.colorScheme.error)
             }
+
+            // ----- Вложения -----
+            val canAttach = state.taskId != null && state.mode != TaskMode.CREATE && !readOnly
+// если хочешь разрешить прикреплять и в VIEW, то:
+// val canAttach = state.taskId != null && state.mode != TaskMode.CREATE
+
+            Text("Вложения", style = MaterialTheme.typography.titleMedium)
+
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (state.taskId == null)
+                                "Сначала создайте задачу"
+                            else
+                                "Файлов: ${state.files.size}",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        IconButton(
+                            onClick = { pickFileLauncher.launch(arrayOf("*/*")) },
+                            enabled = canAttach && !state.isFilesLoading && !state.isLoading
+                        ) {
+                            Icon(Icons.Default.AddCircle, contentDescription = "Прикрепить файл")
+                        }
+                    }
+
+                    if (state.isFilesLoading) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    when {
+                        state.taskId == null -> {
+                            Text("Вложения доступны после создания задачи.")
+                        }
+                        state.files.isEmpty() -> {
+                            Text("Нет вложений.")
+                        }
+                        else -> {
+                            // Скролл внутри карточки
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 220.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(state.files, key = { it.id }) { f ->
+                                    ElevatedCard(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                // Открываем во внешнем приложении
+                                                openAttachedFile(context, f.filePath, f.mimeType)
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(f.fileName, style = MaterialTheme.typography.bodyLarge)
+                                                Text(f.mimeType, style = MaterialTheme.typography.bodySmall)
+                                            }
+
+                                            IconButton(
+                                                onClick = { vm.deleteFile(context, f.id) },
+                                                enabled = !readOnly && !state.isFilesLoading && !state.isLoading
+                                            ) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Удалить файл")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -261,3 +415,5 @@ private fun StatusDropdown(
         }
     }
 }
+
+

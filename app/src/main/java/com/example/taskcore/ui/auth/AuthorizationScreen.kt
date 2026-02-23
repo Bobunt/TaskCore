@@ -1,12 +1,18 @@
 package com.example.taskcore.ui.auth
 
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
@@ -17,8 +23,29 @@ fun AuthorizationScreen(
 ) {
     val state by vm.state.collectAsState()
 
+    val context = LocalContext.current
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* можно обработать результат, если нужно */ }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!granted) {
+                launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     LaunchedEffect(state.isAuthorized) {
-        if (state.isAuthorized) onLoginSuccess()
+        if (state.isAuthorized) {
+            onLoginSuccess()
+        }
     }
 
     Scaffold { padding ->
@@ -40,7 +67,7 @@ fun AuthorizationScreen(
                 modifier = Modifier.fillMaxWidth(),
                 value = state.login,
                 onValueChange = vm::onLoginChanged,
-                label = { Text("Логин или Email") },
+                label = { Text("Логин") },
                 singleLine = true
             )
 
