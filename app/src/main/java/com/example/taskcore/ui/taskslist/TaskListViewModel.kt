@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.taskcore.App
 import com.example.taskcore.data.TaskCoreDB
 import com.example.taskcore.data.tables.Tasks
+import com.example.taskcore.ui.common.dbViewModelFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,6 @@ class TaskListViewModel(
         loadTasks()
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun loadTasks() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
@@ -82,7 +82,6 @@ class TaskListViewModel(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun epochMillisToLocalDate(epochMillis: Long): LocalDate {
         // Для dueDate чаще логично использовать локальную таймзону пользователя
         return Instant.ofEpochMilli(epochMillis)
@@ -112,15 +111,6 @@ class TaskListViewModel(
     }
 
     companion object {
-        val factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(
-                modelClass: Class<T>,
-                extras: CreationExtras
-            ): T {
-                val database = (checkNotNull(extras[APPLICATION_KEY]) as App).database
-                return TaskListViewModel(database) as T
-            }
-        }
+        val factory = dbViewModelFactory { TaskListViewModel(it) }
     }
 }

@@ -1,4 +1,4 @@
-package com.example.taskcore
+package com.example.taskcore.data.security
 
 import android.util.Base64
 import java.security.MessageDigest

@@ -15,6 +15,8 @@ import com.example.taskcore.data.TaskCoreDB
 import com.example.taskcore.data.TaskStatus
 import com.example.taskcore.data.tables.TaskFiles
 import com.example.taskcore.data.tables.Tasks
+import com.example.taskcore.ui.common.dbViewModelFactory
+import com.example.taskcore.ui.taskslist.TaskListViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,7 +47,6 @@ data class TaskState(
 
     val assigneeOptions: List<AssigneeOption> = emptyList(),
 
-    // 👇 новые поля
     val files: List<TaskFileUi> = emptyList(),
     val isFilesLoading: Boolean = false,
 
@@ -56,6 +57,7 @@ data class TaskState(
         get() = title.isNotBlank()
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 class TaskViewModel(
     private val database: TaskCoreDB
 ) : ViewModel() {
@@ -64,7 +66,6 @@ class TaskViewModel(
     private val _state = MutableStateFlow(TaskState())
     val state: StateFlow<TaskState> = _state
 
-    @RequiresApi(Build.VERSION_CODES.O)
     fun load(taskId: String?) {
         loadAssigneesIfNeeded()
 
@@ -143,7 +144,6 @@ class TaskViewModel(
     fun onDueDateChanged(v: String) = _state.update { it.copy(dueDate = v, error = null) }
     fun onStatusChanged(v: String) = _state.update { it.copy(status = v, error = null) }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun parseDueDateToMillis(dueDate: String): Long {
         val dueLocalDate = LocalDate.parse(dueDate.trim()) // YYYY-MM-DD
         return dueLocalDate
@@ -157,7 +157,6 @@ class TaskViewModel(
             .getOrElse { throw IllegalArgumentException("Неверный статус: $status") }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun errorMessage(e: Exception): String = when (e) {
         is java.time.format.DateTimeParseException ->
             "Неверный формат даты. Используй YYYY-MM-DD"
@@ -195,7 +194,6 @@ class TaskViewModel(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     fun onCreateClick() {
         val s = _state.value
         if (!s.canSave || s.isLoading) return
@@ -235,7 +233,6 @@ class TaskViewModel(
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     fun onSaveClick() {
         val s = _state.value
         if (!s.canSave || s.isLoading) return
@@ -427,14 +424,6 @@ class TaskViewModel(
     }
 
     companion object {
-        val factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(
-                modelClass: Class<T>,
-                extras: CreationExtras
-            ): T {
-                val database = (checkNotNull(extras[APPLICATION_KEY]) as App).database
-                return TaskViewModel(database) as T
-            }
-        }
+        val factory = dbViewModelFactory { TaskViewModel(it) }
     }
 }

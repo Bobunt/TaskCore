@@ -6,8 +6,10 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.example.taskcore.App
-import com.example.taskcore.PasswordHasher
+import com.example.taskcore.data.security.PasswordHasher
 import com.example.taskcore.data.TaskCoreDB
+import com.example.taskcore.ui.common.dbViewModelFactory
+import com.example.taskcore.ui.registration.RegistrationViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,14 +79,6 @@ class AuthorizationViewModel(
     }
 
     companion object {
-        val factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(
-                modelClass: Class<T>,
-                extras: CreationExtras
-            ): T {
-                val database = (checkNotNull(extras[APPLICATION_KEY]) as App).database
-                return AuthorizationViewModel(database) as T
-            }
-        }
+        val factory = dbViewModelFactory { AuthorizationViewModel(it) }
     }
 }
