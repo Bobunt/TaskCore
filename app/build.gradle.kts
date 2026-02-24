@@ -19,12 +19,25 @@ android {
     }
 
     buildTypes {
-        release {
+        debug {
+            isDebuggable = true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+
             isMinifyEnabled = false
+            isShrinkResources = false
+        }
+
+        release {
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("Boolean", "LOGGING_ENABLED", "false")
         }
     }
 
@@ -38,6 +51,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
