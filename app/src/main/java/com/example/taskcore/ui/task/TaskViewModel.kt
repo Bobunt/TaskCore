@@ -28,9 +28,9 @@ import java.time.ZoneId
 
 
 data class AssigneeOption(
-    val name: String
+    val login: String
 ) {
-    val label: String get() = name
+    val label: String get() = login
 }
 
 data class TaskState(
@@ -408,11 +408,11 @@ class TaskViewModel(
                     database.userDao.getAll()
                 }
 
-                val options = users.map { AssigneeOption(name = it.name) }
+                val options = users.map { AssigneeOption(login = it.login) }
 
                 _state.update { st ->
                     val defaultAssignee = st.assignee.ifBlank {
-                        options.firstOrNull()?.name.orEmpty()
+                        options.firstOrNull()?.login.orEmpty()
                     }
                     st.copy(
                         assigneeOptions = options,

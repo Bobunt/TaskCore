@@ -13,7 +13,7 @@ object OverdueTasksScheduler {
 
     fun schedule(context: Context) {
         val request = PeriodicWorkRequestBuilder<OverdueTasksWorker>(
-            20, TimeUnit.MINUTES
+            1, TimeUnit.HOURS
         )
             .setConstraints(
                 Constraints.Builder()

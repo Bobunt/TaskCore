@@ -43,9 +43,9 @@ fun RegistrationScreen(
         ) {
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = state.name,
+                value = state.login,
                 onValueChange = vm::onNameChanged,
-                label = { Text("Имя") },
+                label = { Text("login") },
                 singleLine = true
             )
 

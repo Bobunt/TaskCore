@@ -14,7 +14,7 @@ import com.example.taskcore.data.tables.Users
 
 @Database(
     entities = [Users::class, Tasks::class, TaskFiles::class],
-    version = 3
+    version = 4
 )
 @TypeConverters(TaskStatusConverter::class)
 abstract class TaskCoreDB: RoomDatabase() {

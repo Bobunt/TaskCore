@@ -19,13 +19,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.taskcore.ui.registration.RegistrationViewModel
 import java.io.File
-import java.time.LocalDate
 
 enum class TaskMode { CREATE, VIEW, EDIT }
 
@@ -118,7 +115,6 @@ fun TaskScreen(
                             TextButton(
                                 onClick = {
                                     vm.onSaveClick()
-                                    onBack()
                                 },
                                 enabled = state.canSave && !state.isLoading
                             ) { Text("Сохранить") }
@@ -334,7 +330,7 @@ private fun AssigneeDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val selectedLabel = options.firstOrNull { it.name == assigneeLogin }?.label
+    val selectedLabel = options.firstOrNull { it.login == assigneeLogin }?.label
         ?: assigneeLogin.ifBlank { "—" }
 
     ExposedDropdownMenuBox(
@@ -360,7 +356,7 @@ private fun AssigneeDropdown(
                 DropdownMenuItem(
                     text = { Text(user.label) },
                     onClick = {
-                        onAssigneeSelected(user.name) // сохраняем login
+                        onAssigneeSelected(user.login) // сохраняем login
                         expanded = false
                     }
                 )

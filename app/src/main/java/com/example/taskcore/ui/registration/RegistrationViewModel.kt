@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class RegistrationState(
-    val name: String = "",
+    val login: String = "",
     val email: String = "",
     val password: String = "",
     val passwordRepeat: String = "",
@@ -26,7 +26,7 @@ data class RegistrationState(
     val error: String? = null
 ) {
     val canSubmit: Boolean
-        get() = name.isNotBlank() &&
+        get() = login.isNotBlank() &&
                 email.isNotBlank() &&
                 password.isNotBlank() &&
                 passwordRepeat.isNotBlank()
@@ -42,7 +42,7 @@ class RegistrationViewModel(
     private val _state = MutableStateFlow(RegistrationState())
     val state: StateFlow<RegistrationState> = _state
 
-    fun onNameChanged(v: String) = _state.update { it.copy(name = v, error = null) }
+    fun onNameChanged(v: String) = _state.update { it.copy(login = v, error = null) }
     fun onEmailChanged(v: String) = _state.update { it.copy(email = v.trim(), error = null) }
     fun onPasswordChanged(v: String) = _state.update { it.copy(password = v, error = null) }
     fun onPasswordRepeatChanged(v: String) = _state.update { it.copy(passwordRepeat = v, error = null) }
@@ -67,7 +67,7 @@ class RegistrationViewModel(
         viewModelScope.launch {
             try {
                 val email = s.email.trim()
-                val name = s.name.trim()
+                val login = s.login.trim()
 
                 // Проверяем, существует ли пользователь
                 val exists = withContext(Dispatchers.IO) {
@@ -89,8 +89,8 @@ class RegistrationViewModel(
                 val hash = PasswordHasher.hashPassword(s.password, salt)
 
                 val user = Users(
-                    login = email,
-                    name = name,
+                    email = email,
+                    login = login,
                     passwordHash = hash,
                     salt = salt,
                     createdAtTimestamp = System.currentTimeMillis()

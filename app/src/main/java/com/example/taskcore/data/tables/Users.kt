@@ -10,11 +10,11 @@ data class Users(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
+    @ColumnInfo(name = "email")
+    val email: String,
+
     @ColumnInfo(name = "login")
     val login: String,
-
-    @ColumnInfo(name = "name")
-    val name: String,
 
     @ColumnInfo(name = "password_hash")
     val passwordHash: String,

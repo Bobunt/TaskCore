@@ -44,6 +44,7 @@ fun AuthorizationScreen(
 
     LaunchedEffect(state.isAuthorized) {
         if (state.isAuthorized) {
+            vm.consumeAuthorized()
             onLoginSuccess()
         }
     }

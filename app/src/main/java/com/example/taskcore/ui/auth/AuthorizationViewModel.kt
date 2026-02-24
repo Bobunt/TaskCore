@@ -46,10 +46,10 @@ class AuthorizationViewModel(
 
         viewModelScope.launch {
             try {
-                val name = s.login.trim()
+                val login = s.login.trim()
 
                 val user = withContext(Dispatchers.IO) {
-                    usersDao.getByLogin(name)
+                    usersDao.getByLogin(login)
                 }
 
                 if (user == null) {
@@ -70,6 +70,10 @@ class AuthorizationViewModel(
                 _state.update { it.copy(isLoading = false, error = "Ошибка авторизации") }
             }
         }
+    }
+
+    fun consumeAuthorized() {
+        _state.update { it.copy(isAuthorized = false) }
     }
 
     companion object {

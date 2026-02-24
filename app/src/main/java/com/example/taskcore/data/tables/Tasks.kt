@@ -25,7 +25,7 @@ data class Tasks(
 
     @ColumnInfo(name = "updated_at_timestamp")
     val updatedAtTimestamp: Long,
-//
+
     @ColumnInfo(name = "overdue_notified_at_timestamp")
     val overdueNotifiedAtTimestamp: Long? = null
 )
